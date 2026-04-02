@@ -1,0 +1,163 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Typography scale: 4 sizes only */
+    --text-xs: 0.75rem;    /* 12px — captions, badges */
+    --text-sm: 0.875rem;   /* 14px — secondary text */
+    --text-base: 1rem;     /* 16px — body */
+    --text-lg: 1.25rem;    /* 20px — headings */
+
+    /* Radius system */
+    --radius-sm: 8px;
+    --radius-md: 12px;     /* buttons, inputs, tags */
+    --radius-lg: 16px;     /* cards, modals */
+    --radius-full: 9999px; /* pills, avatars */
+
+    /* Shadow system */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 8px 30px -4px rgba(0, 0, 0, 0.1);
+
+    --background: 240 5% 98%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 348 100% 71%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 85% 65%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 220 9% 94%;
+    --muted-foreground: 220 9% 46%;
+
+    --accent: 0 85% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 348 100% 71%;
+
+    --radius: 1.25rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 348 100% 71%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 348 100% 71%;
+  }
+
+  .dark {
+    /* Berry Night — navy-blue premium dark */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.25);
+    --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 10px 30px -4px rgba(0, 0, 0, 0.45);
+
+    /* #0D1117 → HSL 215 28% 7% */
+    --background: 215 28% 7%;
+    /* #E6EAF0 → HSL 216 22% 92% */
+    --foreground: 216 22% 92%;
+
+    /* #151A22 → HSL 217 20% 11% */
+    --card: 217 20% 11%;
+    --card-foreground: 216 22% 92%;
+
+    /* #1A1F2B → HSL 220 22% 14% */
+    --popover: 220 22% 14%;
+    --popover-foreground: 216 22% 92%;
+
+    --primary: 348 100% 65%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 348 70% 55%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* #1A1F2B */
+    --muted: 220 22% 14%;
+    /* #AAB2C0 → HSL 216 14% 71% */
+    --muted-foreground: 216 14% 71%;
+
+    --accent: 348 70% 55%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* #232938 → HSL 222 21% 18% */
+    --border: 222 21% 18%;
+    --input: 222 21% 18%;
+    --ring: 348 100% 65%;
+
+    --sidebar-background: 215 28% 7%;
+    --sidebar-foreground: 216 22% 92%;
+    --sidebar-primary: 348 100% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 22% 14%;
+    --sidebar-accent-foreground: 216 22% 92%;
+    --sidebar-border: 222 21% 18%;
+    --sidebar-ring: 348 100% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    transition: background-color 0.4s ease, color 0.3s ease;
+  }
+
+  * {
+    transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+}
+
+@layer utilities {
+  .berry-gradient {
+    background: linear-gradient(135deg, hsl(348, 100%, 71%), hsl(0, 85%, 65%));
+  }
+
+  .dark .berry-gradient {
+    background: linear-gradient(135deg, hsl(348, 90%, 62%), hsl(0, 75%, 58%));
+  }
+
+  .berry-gradient-text {
+    background: linear-gradient(135deg, hsl(348, 100%, 71%), hsl(0, 85%, 65%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .berry-shadow {
+    box-shadow: 0 4px 20px -4px hsla(348, 100%, 71%, 0.18);
+  }
+
+  .berry-shadow-lg {
+    box-shadow: 0 8px 30px -6px hsla(348, 100%, 71%, 0.25);
+  }
+
+  /* Ambient glow for dark mode pages — subtle blue, no pink */
+  .dark .berry-night-glow {
+    background:
+      radial-gradient(800px circle at 50% 0%, hsla(217, 90%, 60%, 0.06), transparent 60%),
+      hsl(var(--background));
+  }
+}
