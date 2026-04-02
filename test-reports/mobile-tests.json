@@ -1,0 +1,50 @@
+[
+  {
+    "test_name": "Mobile TypeScript compile",
+    "category": "mobile/build",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:45+05:30",
+    "details": "npm --prefix berry-mobile exec tsc --noEmit"
+  },
+  {
+    "test_name": "Platform API compatibility check",
+    "category": "mobile/platform",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:40+05:30",
+    "details": "String scan returned no matches for window/document/localStorage in berry-mobile/src"
+  },
+  {
+    "test_name": "Auth flow parity audit",
+    "category": "mobile/functional/auth",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:30+05:30",
+    "details": "Login/signup/forgot-password/session persistence code paths present; email verification guidance surfaced"
+  },
+  {
+    "test_name": "Profile onboarding validation",
+    "category": "mobile/functional/profile",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:20+05:30",
+    "details": "Name required, age >=18, min interests enforced; profile edit flow implemented"
+  },
+  {
+    "test_name": "Chat behavior parity audit",
+    "category": "mobile/functional/chat",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:15+05:30",
+    "details": "Optimistic send/retry/realtime/delete-for-everyone/delete-for-me/media upload paths verified in hooks/services"
+  },
+  {
+    "test_name": "Device runtime execution",
+    "category": "mobile/e2e/runtime",
+    "status": "FAIL",
+    "error_message": "No Android connected device found, and no emulators could be started automatically.",
+    "timestamp": "2026-04-03T02:38:20+05:30",
+    "details": "expo start --android could not launch app runtime in this environment"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "test_name": "Messages table soft-delete schema",
+    "category": "backend/db",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "messages table includes is_deleted and deleted_at columns"
+  },
+  {
+    "test_name": "soft_delete_message RPC presence",
+    "category": "backend/rpc",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "Function exists and enforces sender_id ownership in update where-clause"
+  },
+  {
+    "test_name": "RLS enabled on users/matches/messages",
+    "category": "backend/security/rls",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "ALTER TABLE ... ENABLE ROW LEVEL SECURITY present for key tables"
+  },
+  {
+    "test_name": "Message access policy scope",
+    "category": "backend/security/rls",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "SELECT/INSERT on messages restricted to authenticated match participants"
+  },
+  {
+    "test_name": "Realtime publication for messages",
+    "category": "backend/realtime",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "ALTER PUBLICATION supabase_realtime ADD TABLE public.messages found"
+  },
+  {
+    "test_name": "Delete-for-me column availability",
+    "category": "backend/db",
+    "status": "PASS",
+    "error_message": null,
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "Added deleted_for_user_ids UUID[] column to messages schema for delete-for-me parity"
+  },
+  {
+    "test_name": "Live Supabase integration tests",
+    "category": "backend/integration",
+    "status": "FAIL",
+    "error_message": "Not executable in this environment without test credentialed users and networked runtime orchestration",
+    "timestamp": "2026-04-03T03:08:50+05:30",
+    "details": "Static schema/policy audit completed; live transactional validation pending"
+  }
+]

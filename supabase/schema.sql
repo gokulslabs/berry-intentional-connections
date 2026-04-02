@@ -60,6 +60,7 @@ CREATE TABLE public.messages (
   match_id UUID NOT NULL REFERENCES public.matches(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
+  deleted_for_user_ids UUID[] DEFAULT '{}',
   is_deleted BOOLEAN DEFAULT FALSE,
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
