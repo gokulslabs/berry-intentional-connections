@@ -171,9 +171,11 @@ const ConvoItem = ({ match, active, onClick, lastMessage }: ConvoItemProps) => {
   const previewText = lastMessage
     ? lastMessage.is_deleted
       ? "This message was deleted"
-      : lastMessage.media_url
-        ? "📷 Photo"
-        : lastMessage.content
+      : lastMessage.media_type === "audio"
+        ? "🎤 Voice note"
+        : lastMessage.media_url
+          ? "📷 Photo"
+          : lastMessage.content
     : "Start chatting 🍓";
 
   const timeLabel = lastMessage
@@ -491,7 +493,7 @@ const ChatPage = () => {
       )}
 
       {/* Input */}
-      <div className="bg-card/90 backdrop-blur-xl border-t border-border px-berry-2 py-berry-1">
+      <div className="bg-card/90 backdrop-blur-xl border-t border-border px-berry-2 py-berry-1 relative">
         <div className="max-w-md mx-auto flex items-center gap-berry-1">
           <input
             ref={fileInputRef}
@@ -502,7 +504,7 @@ const ChatPage = () => {
           />
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-[44px] h-[44px] rounded-[var(--radius-full)] bg-muted flex items-center justify-center text-muted-foreground active:scale-95 transition-all hover:bg-primary/10 hover:text-primary"
+            className="w-[44px] h-[44px] rounded-[var(--radius-full)] bg-muted flex items-center justify-center text-muted-foreground active:scale-95 transition-all hover:bg-primary/10 hover:text-primary flex-shrink-0"
           >
             <ImagePlus className="w-5 h-5" />
           </button>
@@ -512,18 +514,26 @@ const ChatPage = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Say something interesting…"
-            className="flex-1 rounded-[var(--radius-full)] border border-border bg-background px-berry-3 py-berry-1 text-[var(--text-sm)] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-200"
+            className="flex-1 min-w-0 rounded-[var(--radius-full)] border border-border bg-background px-berry-3 py-berry-1 text-[var(--text-sm)] text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-200"
           />
-          <button
-            onClick={() => handleSend()}
-            disabled={!input.trim()}
-            className={cn(
-              "w-[44px] h-[44px] rounded-[var(--radius-full)] flex items-center justify-center transition-all duration-200 active:scale-90",
-              input.trim() ? "berry-gradient berry-shadow" : "bg-muted text-muted-foreground"
-            )}
-          >
-            <Send className={cn("w-[18px] h-[18px] transition-transform duration-200", input.trim() ? "text-primary-foreground translate-x-[1px] -translate-y-[1px]" : "")} />
-          </button>
+          {input.trim() ? (
+            <button
+              onClick={() => handleSend()}
+              className={cn(
+                "w-[44px] h-[44px] rounded-[var(--radius-full)] flex items-center justify-center transition-all duration-200 active:scale-90 berry-gradient berry-shadow flex-shrink-0"
+              )}
+            >
+              <Send className="w-[18px] h-[18px] text-primary-foreground translate-x-[1px] -translate-y-[1px]" />
+            </button>
+          ) : (
+            <VoiceRecorderButton
+              disabled={isDemo || !userId}
+              onRecorded={(blob, duration) => {
+                if (!userId || isDemo) return;
+                realChat.sendVoiceNote(userId, blob, duration);
+              }}
+            />
+          )}
         </div>
       </div>
 
