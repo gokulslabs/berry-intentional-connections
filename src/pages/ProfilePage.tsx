@@ -130,10 +130,16 @@ const ProfilePage = () => {
 
         {!loading && profile && !editing && (
           <>
-            <div className="flex flex-col items-center space-y-berry-2">
+            <div className="flex flex-col items-center space-y-berry-2 animate-scale-in">
               <div className="relative">
-                <BerryAvatar name={profile.name} size="xl" />
-                <div className="absolute -bottom-1 -right-1 bg-card rounded-[var(--radius-full)] p-[2px] shadow-[var(--shadow-sm)]">
+                {/* Animated gradient ring */}
+                <div className="absolute inset-0 rounded-[var(--radius-full)] berry-gradient blur-md opacity-40 scale-110" />
+                <div className="relative p-[3px] rounded-[var(--radius-full)] berry-gradient berry-shadow">
+                  <div className="rounded-[var(--radius-full)] bg-card p-[2px]">
+                    <BerryAvatar name={profile.name} size="xl" />
+                  </div>
+                </div>
+                <div className="absolute -bottom-1 -right-1 bg-card rounded-[var(--radius-full)] p-[2px] shadow-[var(--shadow-md)]">
                   <div className="berry-gradient rounded-[var(--radius-full)] px-berry-1 py-[4px] flex items-center gap-[4px] berry-shadow">
                     <BerryLogo size="sm" />
                     <span className="text-[var(--text-xs)] font-bold text-primary-foreground">Lv. {profile.level}</span>
@@ -142,6 +148,11 @@ const ProfilePage = () => {
               </div>
               <div className="text-center">
                 <h2 className="text-2xl font-bold text-foreground">{profile.name}, {profile.age}</h2>
+                {(profile.interests?.length ?? 0) > 0 && (
+                  <p className="text-[var(--text-xs)] text-muted-foreground mt-[2px]">
+                    {profile.interests.length} interest{profile.interests.length === 1 ? "" : "s"} · {Math.round(profile.response_rate)}% response rate
+                  </p>
+                )}
               </div>
             </div>
 
