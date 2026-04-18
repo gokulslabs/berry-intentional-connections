@@ -25,7 +25,19 @@ export function useChat(matchId: string | undefined) {
       if (!matchId) return [] as ChatMessage[];
       const { messages, error } = await chatService.getMessages(matchId);
       if (error) throw new Error(error);
-      return messages as ChatMessage[];
+
+      // Hydrate fresh signed URLs for any voice notes (stored signed URLs may have expired).
+      const hydrated = await Promise.all(
+        (messages as ChatMessage[]).map(async (m) => {
+          if (m.media_type === "audio" && m.audio_path) {
+            const { url } = await chatService.getVoiceNoteUrl(m.audio_path);
+            if (url) return { ...m, media_url: url };
+          }
+          return m;
+        })
+      );
+
+      return hydrated;
     },
     enabled: !!matchId,
   });
@@ -35,17 +47,31 @@ export function useChat(matchId: string | undefined) {
 
     const channel = chatService.subscribeToMessages(
       matchId,
-      (newMessage) => {
+      async (newMessage) => {
+        // For incoming voice notes, mint a signed URL before inserting into the cache
+        let enriched: ChatMessage = { ...newMessage, _status: "sent" as MessageStatus };
+        if (newMessage.media_type === "audio" && newMessage.audio_path) {
+          const { url } = await chatService.getVoiceNoteUrl(newMessage.audio_path);
+          if (url) enriched = { ...enriched, media_url: url };
+        }
+
         queryClient.setQueryData(
           ["messages", matchId],
           (old: ChatMessage[] | undefined) => {
             const existing = old ?? [];
+            // Dedupe: skip if we already have this DB id (e.g. our own optimistic-then-confirmed msg)
+            if (existing.some((m) => m.id === newMessage.id)) return existing;
+            // Dedupe text optimistic by content match
             const deduped = existing.filter(
               (m) =>
-                !(m._tempId && m.sender_id === newMessage.sender_id && m.content === newMessage.content)
+                !(
+                  m._tempId &&
+                  m.sender_id === newMessage.sender_id &&
+                  m.content === newMessage.content &&
+                  m.media_type === newMessage.media_type
+                )
             );
-            if (deduped.some((m) => m.id === newMessage.id)) return deduped;
-            return [...deduped, { ...newMessage, _status: "sent" as MessageStatus }];
+            return [...deduped, enriched];
           }
         );
       },
