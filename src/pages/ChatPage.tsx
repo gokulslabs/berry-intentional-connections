@@ -4,6 +4,8 @@ import BerryAvatar from "@/components/berry/BerryAvatar";
 import BerryLogo from "@/components/berry/BerryLogo";
 import BerryButton from "@/components/berry/BerryButton";
 import BottomNav from "@/components/berry/BottomNav";
+import VoiceNotePlayer from "@/components/berry/VoiceNotePlayer";
+import VoiceRecorderButton from "@/components/berry/VoiceRecorderButton";
 import { ArrowLeft, Send, Check, CheckCheck, RotateCcw, ImagePlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthContext } from "@/features/auth/contexts/AuthContext";
