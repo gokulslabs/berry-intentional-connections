@@ -1,8 +1,11 @@
--- Berry 🍓 Database Schema
--- Run this in Supabase SQL Editor (Dashboard → SQL Editor → New Query)
+-- Berry 🍓 Database Schema (idempotent)
+-- Safe to run multiple times on a fresh OR existing database.
+-- Run this in Supabase SQL Editor (Dashboard → SQL Editor → New Query).
 
+-- ============================================================
 -- 1. Users table
-CREATE TABLE public.users (
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.users (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   age INTEGER NOT NULL CHECK (age >= 18),
@@ -15,24 +18,29 @@ CREATE TABLE public.users (
 
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can read own profile" ON public.users;
 CREATE POLICY "Users can read own profile"
   ON public.users FOR SELECT
   TO authenticated
   USING (id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
 CREATE POLICY "Users can insert own profile"
   ON public.users FOR INSERT
   TO authenticated
   WITH CHECK (id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
 CREATE POLICY "Users can update own profile"
   ON public.users FOR UPDATE
   TO authenticated
   USING (id = auth.uid())
   WITH CHECK (id = auth.uid());
 
+-- ============================================================
 -- 2. Matches table
-CREATE TABLE public.matches (
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user1_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   user2_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -44,18 +52,22 @@ CREATE TABLE public.matches (
 
 ALTER TABLE public.matches ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view own matches" ON public.matches;
 CREATE POLICY "Users can view own matches"
   ON public.matches FOR SELECT
   TO authenticated
   USING (user1_id = auth.uid() OR user2_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can create matches" ON public.matches;
 CREATE POLICY "Users can create matches"
   ON public.matches FOR INSERT
   TO authenticated
   WITH CHECK (user1_id = auth.uid() OR user2_id = auth.uid());
 
+-- ============================================================
 -- 3. Messages table
-CREATE TABLE public.messages (
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.messages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   match_id UUID NOT NULL REFERENCES public.matches(id) ON DELETE CASCADE,
   sender_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
@@ -65,6 +77,13 @@ CREATE TABLE public.messages (
   deleted_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Voice note columns (added later — kept inline for idempotency)
+ALTER TABLE public.messages
+  ADD COLUMN IF NOT EXISTS audio_path TEXT,
+  ADD COLUMN IF NOT EXISTS audio_duration NUMERIC,
+  ADD COLUMN IF NOT EXISTS media_url TEXT,
+  ADD COLUMN IF NOT EXISTS media_type TEXT;
 
 -- Soft-delete function: only sender can delete their own messages
 CREATE OR REPLACE FUNCTION public.soft_delete_message(_message_id UUID, _user_id UUID)
@@ -98,11 +117,13 @@ AS $$
   )
 $$;
 
+DROP POLICY IF EXISTS "Users can view messages in their matches" ON public.messages;
 CREATE POLICY "Users can view messages in their matches"
   ON public.messages FOR SELECT
   TO authenticated
   USING (public.is_match_participant(auth.uid(), match_id));
 
+DROP POLICY IF EXISTS "Users can send messages in their matches" ON public.messages;
 CREATE POLICY "Users can send messages in their matches"
   ON public.messages FOR INSERT
   TO authenticated
@@ -111,7 +132,10 @@ CREATE POLICY "Users can send messages in their matches"
     AND public.is_match_participant(auth.uid(), match_id)
   );
 
--- 4. Now add cross-table policy (matches table exists)
+-- ============================================================
+-- 4. Cross-table policy: view matched profiles
+-- ============================================================
+DROP POLICY IF EXISTS "Users can view matched profiles" ON public.users;
 CREATE POLICY "Users can view matched profiles"
   ON public.users FOR SELECT
   TO authenticated
@@ -123,17 +147,33 @@ CREATE POLICY "Users can view matched profiles"
     )
   );
 
--- 5. Enable realtime for messages
-ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+-- ============================================================
+-- 5. Realtime for messages (idempotent)
+-- ============================================================
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_publication_tables
+    WHERE pubname = 'supabase_realtime'
+      AND schemaname = 'public'
+      AND tablename = 'messages'
+  ) THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE public.messages;
+  END IF;
+END $$;
 
+-- ============================================================
 -- 6. Indexes for performance
-CREATE INDEX idx_matches_user1 ON public.matches(user1_id);
-CREATE INDEX idx_matches_user2 ON public.matches(user2_id);
-CREATE INDEX idx_messages_match ON public.messages(match_id, created_at);
-CREATE INDEX idx_messages_sender ON public.messages(sender_id);
-CREATE INDEX idx_matches_created ON public.matches(created_at);
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_matches_user1   ON public.matches(user1_id);
+CREATE INDEX IF NOT EXISTS idx_matches_user2   ON public.matches(user2_id);
+CREATE INDEX IF NOT EXISTS idx_messages_match  ON public.messages(match_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON public.messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_matches_created ON public.matches(created_at);
 
--- 7. Smart matching function (SECURITY DEFINER to bypass RLS for candidate discovery)
+-- ============================================================
+-- 7. Smart matching function
+-- ============================================================
 CREATE OR REPLACE FUNCTION public.generate_daily_matches(_user_id UUID, _limit INT DEFAULT 5)
 RETURNS TABLE (
   match_id UUID,
@@ -158,19 +198,16 @@ DECLARE
   _user_interests TEXT[];
   _user_age INT;
 BEGIN
-  -- Count today's matches
   SELECT COUNT(*) INTO _today_count
   FROM matches m
   WHERE (m.user1_id = _user_id OR m.user2_id = _user_id)
     AND m.created_at::date = _today;
 
-  -- Get user profile
   SELECT u.interests, u.age INTO _user_interests, _user_age
   FROM users u WHERE u.id = _user_id;
 
   IF _user_interests IS NULL THEN _user_interests := '{}'; END IF;
 
-  -- Generate new matches if under limit
   IF _today_count < _limit THEN
     INSERT INTO matches (user1_id, user2_id, match_reason)
     SELECT
@@ -208,7 +245,6 @@ BEGIN
     ON CONFLICT DO NOTHING;
   END IF;
 
-  -- Return all of today's matches
   RETURN QUERY
   SELECT
     m.id,
@@ -225,26 +261,13 @@ END;
 $$;
 
 -- ============================================================
--- 8. Voice Notes
+-- 8. Voice Notes — private storage bucket + policies
 -- ============================================================
-
--- Add audio columns to messages table
-ALTER TABLE public.messages
-  ADD COLUMN IF NOT EXISTS audio_path TEXT,
-  ADD COLUMN IF NOT EXISTS audio_duration NUMERIC;
-
--- Allow 'audio' as a media_type (no enum used; media_type is free text)
--- Existing constraints (none) remain compatible.
-
--- Private bucket for voice notes
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('chat-audio', 'chat-audio', false)
 ON CONFLICT (id) DO NOTHING;
 
--- RLS: storage.objects policies for chat-audio
--- Files are stored under: <match_id>/<filename>
--- Only match participants can read/write.
-
+DROP POLICY IF EXISTS "Match participants can upload voice notes" ON storage.objects;
 CREATE POLICY "Match participants can upload voice notes"
   ON storage.objects FOR INSERT
   TO authenticated
@@ -253,6 +276,7 @@ CREATE POLICY "Match participants can upload voice notes"
     AND public.is_match_participant(auth.uid(), (storage.foldername(name))[1]::uuid)
   );
 
+DROP POLICY IF EXISTS "Match participants can read voice notes" ON storage.objects;
 CREATE POLICY "Match participants can read voice notes"
   ON storage.objects FOR SELECT
   TO authenticated
@@ -261,6 +285,7 @@ CREATE POLICY "Match participants can read voice notes"
     AND public.is_match_participant(auth.uid(), (storage.foldername(name))[1]::uuid)
   );
 
+DROP POLICY IF EXISTS "Senders can delete their voice notes" ON storage.objects;
 CREATE POLICY "Senders can delete their voice notes"
   ON storage.objects FOR DELETE
   TO authenticated
