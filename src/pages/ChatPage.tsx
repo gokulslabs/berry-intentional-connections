@@ -6,6 +6,7 @@ import BerryButton from "@/components/berry/BerryButton";
 import BottomNav from "@/components/berry/BottomNav";
 import VoiceNotePlayer from "@/components/berry/VoiceNotePlayer";
 import VoiceRecorderButton from "@/components/berry/VoiceRecorderButton";
+import SafetyMenu from "@/components/berry/SafetyMenu";
 import { ArrowLeft, Send, Check, CheckCheck, RotateCcw, ImagePlus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthContext } from "@/features/auth/contexts/AuthContext";
@@ -438,7 +439,14 @@ const ChatPage = () => {
             <p className="font-semibold text-[var(--text-sm)] text-foreground leading-tight truncate">{partnerName}</p>
             <p className="text-[var(--text-xs)] text-primary font-medium">Active now</p>
           </div>
-          <BerryLogo size="sm" className="opacity-40" />
+          {!isDemo && userId && activeMatch?.partner?.id && (
+            <SafetyMenu
+              currentUserId={userId}
+              partnerId={activeMatch.partner.id}
+              partnerName={partnerName}
+              matchId={matchId ?? null}
+            />
+          )}
         </div>
       </div>
 

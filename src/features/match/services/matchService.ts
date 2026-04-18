@@ -43,11 +43,21 @@ export const matchService = {
       .select("user1_id, user2_id")
       .or(`user1_id.eq.${userId},user2_id.eq.${userId}`);
 
-    const matchedIds = new Set<string>();
-    matchedIds.add(userId);
+    const excludedIds = new Set<string>();
+    excludedIds.add(userId);
     (existingMatches ?? []).forEach((m: { user1_id: string; user2_id: string }) => {
-      matchedIds.add(m.user1_id);
-      matchedIds.add(m.user2_id);
+      excludedIds.add(m.user1_id);
+      excludedIds.add(m.user2_id);
+    });
+
+    // Exclude blocked users (in either direction)
+    const { data: blocks } = await supabase
+      .from("blocks")
+      .select("blocker_id, blocked_id")
+      .or(`blocker_id.eq.${userId},blocked_id.eq.${userId}`);
+
+    (blocks ?? []).forEach((b: { blocker_id: string; blocked_id: string }) => {
+      excludedIds.add(b.blocker_id === userId ? b.blocked_id : b.blocker_id);
     });
 
     const { data: users } = await supabase
@@ -55,7 +65,7 @@ export const matchService = {
       .select("*")
       .limit(50);
 
-    return (users ?? []).filter((u: UserProfile) => !matchedIds.has(u.id));
+    return (users ?? []).filter((u: UserProfile) => !excludedIds.has(u.id));
   },
 
   async createMatch(
