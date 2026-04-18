@@ -13,33 +13,37 @@ const ThemeContext = createContext<ThemeContextType>({ theme: "light", toggleThe
 export const useTheme = () => useContext(ThemeContext);
 
 export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
-  const [theme, setTheme] = useState<Theme>("light");
-  const [ready, setReady] = useState(false);
+  // Initialize from the class already applied by the inline anti-FOUC script in index.html.
+  // This avoids any light→dark flash on first paint.
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) {
+      return "dark";
+    }
+    return "light";
+  });
 
-  // Load persisted theme via platform adapter
+  // Reconcile with persisted value from the storage adapter (handles async RN AsyncStorage).
   useEffect(() => {
     const stored = getStorageAdapter().getItem("berry-theme");
     if (stored instanceof Promise) {
       stored.then((v) => {
         if (v === "dark" || v === "light") setTheme(v);
-        setReady(true);
       });
-    } else {
-      if (stored === "dark" || stored === "light") setTheme(stored);
-      setReady(true);
+    } else if (stored === "dark" || stored === "light") {
+      setTheme(stored);
     }
   }, []);
 
-  // Apply theme — web-specific DOM manipulation (safe no-op outside browser)
+  // Apply theme on changes (initial paint already handled inline in index.html).
   useEffect(() => {
-    if (!ready) return;
     if (typeof document !== "undefined") {
       const root = document.documentElement;
       root.classList.remove("light", "dark");
       root.classList.add(theme);
+      (root.style as CSSStyleDeclaration & { colorScheme: string }).colorScheme = theme;
     }
     getStorageAdapter().setItem("berry-theme", theme);
-  }, [theme, ready]);
+  }, [theme]);
 
   const toggleTheme = () => setTheme((t) => (t === "light" ? "dark" : "light"));
 

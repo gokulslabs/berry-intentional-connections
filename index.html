@@ -16,6 +16,33 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@BerryApp" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <!-- Anti-FOUC: apply theme before React mounts. Must stay inline & blocking. -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('berry-theme');
+          var theme =
+            stored === 'dark' || stored === 'light'
+              ? stored
+              : window.matchMedia('(prefers-color-scheme: dark)').matches
+              ? 'dark'
+              : 'light';
+          var root = document.documentElement;
+          root.classList.remove('light', 'dark');
+          root.classList.add(theme);
+          root.style.colorScheme = theme;
+        } catch (e) {
+          document.documentElement.classList.add('light');
+        }
+      })();
+    </script>
+    <style>
+      /* Paint background immediately using the same tokens as index.css */
+      :root { background-color: hsl(240 5% 98%); }
+      :root.dark { background-color: hsl(215 28% 7%); }
+      html, body { background-color: hsl(var(--background, 240 5% 98%)); }
+    </style>
   </head>
 
   <body>
