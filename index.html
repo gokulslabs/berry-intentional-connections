@@ -21,17 +21,24 @@
     <script>
       (function () {
         try {
-          var stored = localStorage.getItem('berry-theme');
-          var theme =
-            stored === 'dark' || stored === 'light'
-              ? stored
-              : window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'dark'
-              : 'light';
-          var root = document.documentElement;
-          root.classList.remove('light', 'dark');
-          root.classList.add(theme);
-          root.style.colorScheme = theme;
+          var stored = localStorage.getItem('berry-theme'); // 'light' | 'dark' | 'system' | null
+          var mql = window.matchMedia('(prefers-color-scheme: dark)');
+          var resolve = function () {
+            if (stored === 'dark' || stored === 'light') return stored;
+            return mql.matches ? 'dark' : 'light';
+          };
+          var apply = function (theme) {
+            var root = document.documentElement;
+            root.classList.remove('light', 'dark');
+            root.classList.add(theme);
+            root.style.colorScheme = theme;
+          };
+          apply(resolve());
+          // When following system, react to OS changes live — even before React hydrates.
+          if (stored !== 'dark' && stored !== 'light') {
+            var onChange = function () { apply(resolve()); };
+            mql.addEventListener ? mql.addEventListener('change', onChange) : mql.addListener(onChange);
+          }
         } catch (e) {
           document.documentElement.classList.add('light');
         }
