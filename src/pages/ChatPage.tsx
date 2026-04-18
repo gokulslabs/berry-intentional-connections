@@ -53,7 +53,10 @@ const StatusIndicator = memo(({ status, isLast }: { status?: MessageStatus; isLa
 StatusIndicator.displayName = "StatusIndicator";
 
 /* ─── Media ─── */
-const MediaContent = memo(({ mediaUrl, mediaType }: { mediaUrl: string; mediaType: "image" | "video" }) => {
+const MediaContent = memo(({ mediaUrl, mediaType }: { mediaUrl: string; mediaType: "image" | "video" | "audio" }) => {
+  if (mediaType === "audio") {
+    return <VoiceNotePlayer src={mediaUrl} />;
+  }
   if (mediaType === "video") {
     return (
       <video
