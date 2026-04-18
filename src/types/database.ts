@@ -27,7 +27,9 @@ export interface Message {
   sender_id: string;
   content: string;
   media_url?: string;
-  media_type?: "image" | "video";
+  media_type?: "image" | "video" | "audio";
+  audio_path?: string;
+  audio_duration?: number;
   is_deleted?: boolean;
   deleted_at?: string;
   created_at: string;
