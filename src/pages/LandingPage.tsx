@@ -81,8 +81,9 @@ const LandingPage = () => {
           </button>
           <div className="flex items-center gap-berry-1">
             <ThemeToggle />
-            <BerryButton size="sm" onClick={() => navigate("/onboarding")}>
-              Apply to Join
+            <BerryButton size="sm" onClick={() => navigate("/onboarding")} className="whitespace-nowrap">
+              <span className="hidden sm:inline">Apply to Join</span>
+              <span className="sm:hidden">Join 🍓</span>
             </BerryButton>
           </div>
         </div>

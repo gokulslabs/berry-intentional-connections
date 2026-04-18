@@ -1,4 +1,5 @@
 import { useNavigate } from "react-router-dom";
+import { useMemo } from "react";
 import ProfileCard from "@/components/berry/ProfileCard";
 import BerryLogo from "@/components/berry/BerryLogo";
 import ThemeToggle from "@/components/berry/ThemeToggle";
@@ -7,6 +8,7 @@ import BerryButton from "@/components/berry/BerryButton";
 import { useAuthContext } from "@/features/auth/contexts/AuthContext";
 import { useDemoContext } from "@/features/auth/contexts/DemoContext";
 import { useMatches } from "@/features/match/hooks/useMatches";
+import { computeCompatibility } from "@/features/match/utils/compatibility";
 
 const MatchSkeleton = () => (
   <div className="bg-card rounded-[var(--radius-lg)] border border-border overflow-hidden animate-pulse">
@@ -25,13 +27,29 @@ const MatchSkeleton = () => (
 
 const MatchFeedPage = () => {
   const navigate = useNavigate();
-  const { authUser } = useAuthContext();
+  const { authUser, profile } = useAuthContext();
   const demo = useDemoContext();
   const isDemo = demo?.isDemo ?? false;
 
   const { data: realMatches, isLoading, error } = useMatches(isDemo ? undefined : authUser?.id);
   const matches = isDemo ? demo?.getMatches() ?? [] : realMatches;
   const loading = isDemo ? false : isLoading;
+
+  const me = isDemo ? demo?.demoProfile : profile;
+
+  // Enrich matches with compatibility info, sorted by score (most compatible first)
+  const enriched = useMemo(() => {
+    if (!matches || !me) return [];
+    return matches
+      .map((match) => {
+        const c = computeCompatibility(
+          { interests: me.interests ?? [], age: me.age },
+          match.partner
+        );
+        return { match, score: c.score, reason: match.match_reason || c.reason, shared: c.sharedInterests };
+      })
+      .sort((a, b) => b.score - a.score);
+  }, [matches, me]);
 
   return (
     <div className="min-h-screen bg-background dark:berry-night-glow pb-[80px]">
@@ -48,9 +66,9 @@ const MatchFeedPage = () => {
       <div className="max-w-md mx-auto px-berry-3 py-berry-3 space-y-berry-2">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-[var(--text-lg)] font-bold text-foreground">Your Matches</h2>
+            <h2 className="text-[var(--text-lg)] font-bold text-foreground">Your Matches 🍓</h2>
             <p className="text-[var(--text-sm)] text-muted-foreground">
-              {loading ? "Loading…" : `${matches?.length ?? 0} connections`}
+              {loading ? "Loading…" : `${matches?.length ?? 0} mutual connection${matches?.length === 1 ? "" : "s"}`}
             </p>
           </div>
         </div>
@@ -67,14 +85,17 @@ const MatchFeedPage = () => {
           </div>
         )}
 
-        {!loading && matches && matches.length > 0 && (
+        {!loading && enriched.length > 0 && (
           <div className="space-y-berry-2">
-            {matches.map((match, i) => (
+            {enriched.map(({ match, score, reason, shared }, i) => (
               <div key={match.id} className="animate-fade-in" style={{ animationDelay: `${i * 100}ms` }}>
                 <ProfileCard
                   name={match.partner.name}
                   age={match.partner.age}
                   tags={match.partner.interests ?? []}
+                  matchReason={reason}
+                  compatibility={score}
+                  sharedInterests={shared}
                   onChat={() => navigate(`/chat/${match.id}`)}
                 />
               </div>
@@ -88,10 +109,10 @@ const MatchFeedPage = () => {
               <BerryLogo size="lg" />
             </div>
             <p className="text-[var(--text-base)] font-semibold text-foreground">
-              Start exploring to find your people 🍓
+              No matches yet 🍓
             </p>
             <p className="text-[var(--text-sm)] text-muted-foreground max-w-[260px] mx-auto">
-              Browse profiles and match with people you'd like to chat with.
+              Like people you'd love to chat with — when they like you back, you'll match.
             </p>
             <BerryButton onClick={() => navigate("/explore")}>
               Explore People 🍓
