@@ -322,6 +322,7 @@ export function useChat(matchId: string | undefined) {
     error: messagesQuery.error,
     send,
     sendMedia,
+    sendVoiceNote,
     retry,
     deleteMessage,
     isSending: sendMessage.isPending,
