@@ -17,7 +17,7 @@ function createTempId() {
 
 export function useChat(matchId: string | undefined) {
   const queryClient = useQueryClient();
-  const failedMessagesRef = useRef<Map<string, { senderId: string; content: string; mediaUrl?: string; mediaType?: "image" | "video" }>>(new Map());
+  const failedMessagesRef = useRef<Map<string, { senderId: string; content: string; mediaUrl?: string; mediaType?: "image" | "video" | "audio" }>>(new Map());
 
   const messagesQuery = useQuery({
     queryKey: ["messages", matchId],
@@ -25,7 +25,19 @@ export function useChat(matchId: string | undefined) {
       if (!matchId) return [] as ChatMessage[];
       const { messages, error } = await chatService.getMessages(matchId);
       if (error) throw new Error(error);
-      return messages as ChatMessage[];
+
+      // Hydrate fresh signed URLs for any voice notes (stored signed URLs may have expired).
+      const hydrated = await Promise.all(
+        (messages as ChatMessage[]).map(async (m) => {
+          if (m.media_type === "audio" && m.audio_path) {
+            const { url } = await chatService.getVoiceNoteUrl(m.audio_path);
+            if (url) return { ...m, media_url: url };
+          }
+          return m;
+        })
+      );
+
+      return hydrated;
     },
     enabled: !!matchId,
   });
@@ -35,17 +47,31 @@ export function useChat(matchId: string | undefined) {
 
     const channel = chatService.subscribeToMessages(
       matchId,
-      (newMessage) => {
+      async (newMessage) => {
+        // For incoming voice notes, mint a signed URL before inserting into the cache
+        let enriched: ChatMessage = { ...newMessage, _status: "sent" as MessageStatus };
+        if (newMessage.media_type === "audio" && newMessage.audio_path) {
+          const { url } = await chatService.getVoiceNoteUrl(newMessage.audio_path);
+          if (url) enriched = { ...enriched, media_url: url };
+        }
+
         queryClient.setQueryData(
           ["messages", matchId],
           (old: ChatMessage[] | undefined) => {
             const existing = old ?? [];
+            // Dedupe: skip if we already have this DB id (e.g. our own optimistic-then-confirmed msg)
+            if (existing.some((m) => m.id === newMessage.id)) return existing;
+            // Dedupe text optimistic by content match
             const deduped = existing.filter(
               (m) =>
-                !(m._tempId && m.sender_id === newMessage.sender_id && m.content === newMessage.content)
+                !(
+                  m._tempId &&
+                  m.sender_id === newMessage.sender_id &&
+                  m.content === newMessage.content &&
+                  m.media_type === newMessage.media_type
+                )
             );
-            if (deduped.some((m) => m.id === newMessage.id)) return deduped;
-            return [...deduped, { ...newMessage, _status: "sent" as MessageStatus }];
+            return [...deduped, enriched];
           }
         );
       },
@@ -72,19 +98,30 @@ export function useChat(matchId: string | undefined) {
       _tempId,
       mediaUrl,
       mediaType,
+      audioPath,
+      audioDuration,
     }: {
       senderId: string;
       content: string;
       _tempId: string;
       mediaUrl?: string;
-      mediaType?: "image" | "video";
+      mediaType?: "image" | "video" | "audio";
+      audioPath?: string;
+      audioDuration?: number;
     }) => {
       if (!matchId) throw new Error("No match selected");
-      const { message, error } = await chatService.sendMessage(matchId, senderId, content, mediaUrl, mediaType);
+      const { message, error } = await chatService.sendMessage(
+        matchId,
+        senderId,
+        content,
+        mediaUrl,
+        mediaType,
+        { audio_path: audioPath, audio_duration: audioDuration }
+      );
       if (error) throw new Error(error);
       return { message, _tempId };
     },
-    onMutate: async ({ senderId, content, _tempId, mediaUrl, mediaType }) => {
+    onMutate: async ({ senderId, content, _tempId, mediaUrl, mediaType, audioPath, audioDuration }) => {
       await queryClient.cancelQueries({ queryKey: ["messages", matchId] });
 
       const optimisticMessage: ChatMessage = {
@@ -94,6 +131,8 @@ export function useChat(matchId: string | undefined) {
         content,
         media_url: mediaUrl,
         media_type: mediaType,
+        audio_path: audioPath,
+        audio_duration: audioDuration,
         created_at: new Date().toISOString(),
         _status: "sending",
         _tempId,
@@ -111,11 +150,15 @@ export function useChat(matchId: string | undefined) {
       queryClient.setQueryData(
         ["messages", matchId],
         (old: ChatMessage[] | undefined) =>
-          (old ?? []).map((m) =>
-            m._tempId === _tempId
-              ? { ...message!, _status: "sent" as MessageStatus }
-              : m
-          )
+          (old ?? []).map((m) => {
+            if (m._tempId !== _tempId) return m;
+            // Preserve any optimistic media_url (signed/blob) we already have so playback keeps working
+            return {
+              ...message!,
+              media_url: m.media_url ?? message!.media_url,
+              _status: "sent" as MessageStatus,
+            };
+          })
       );
     },
     onError: (_error, variables) => {
@@ -136,9 +179,23 @@ export function useChat(matchId: string | undefined) {
   });
 
   const send = useCallback(
-    (senderId: string, content: string, mediaUrl?: string, mediaType?: "image" | "video") => {
+    (
+      senderId: string,
+      content: string,
+      mediaUrl?: string,
+      mediaType?: "image" | "video" | "audio",
+      extra?: { audioPath?: string; audioDuration?: number }
+    ) => {
       const _tempId = createTempId();
-      sendMessage.mutate({ senderId, content, _tempId, mediaUrl, mediaType });
+      sendMessage.mutate({
+        senderId,
+        content,
+        _tempId,
+        mediaUrl,
+        mediaType,
+        audioPath: extra?.audioPath,
+        audioDuration: extra?.audioDuration,
+      });
     },
     [sendMessage]
   );
@@ -160,6 +217,69 @@ export function useChat(matchId: string | undefined) {
       send(senderId, "", url, mediaType);
     },
     [matchId, send]
+  );
+
+  const sendVoiceNote = useCallback(
+    async (senderId: string, blob: Blob, durationSec: number) => {
+      if (!matchId) return;
+      // Optimistic: play from local object URL while uploading
+      const localUrl = URL.createObjectURL(blob);
+      const _tempId = createTempId();
+      sendMessage.mutate({
+        senderId,
+        content: "",
+        _tempId,
+        mediaUrl: localUrl,
+        mediaType: "audio",
+        audioDuration: Math.round(durationSec * 10) / 10,
+      });
+
+      const { path, error } = await chatService.uploadVoiceNote(matchId, blob);
+      if (error || !path) {
+        console.error("[Berry] Voice upload failed:", error);
+        queryClient.setQueryData(
+          ["messages", matchId],
+          (old: ChatMessage[] | undefined) =>
+            (old ?? []).map((m) =>
+              m._tempId === _tempId ? { ...m, _status: "failed" as MessageStatus } : m
+            )
+        );
+        return;
+      }
+
+      // Sign and persist to DB
+      const { url: signedUrl } = await chatService.getVoiceNoteUrl(path);
+      const { message, error: insertErr } = await chatService.sendMessage(
+        matchId,
+        senderId,
+        "",
+        signedUrl ?? undefined,
+        "audio",
+        { audio_path: path, audio_duration: Math.round(durationSec * 10) / 10 }
+      );
+
+      if (insertErr || !message) {
+        queryClient.setQueryData(
+          ["messages", matchId],
+          (old: ChatMessage[] | undefined) =>
+            (old ?? []).map((m) =>
+              m._tempId === _tempId ? { ...m, _status: "failed" as MessageStatus } : m
+            )
+        );
+        return;
+      }
+
+      queryClient.setQueryData(
+        ["messages", matchId],
+        (old: ChatMessage[] | undefined) =>
+          (old ?? []).map((m) =>
+            m._tempId === _tempId
+              ? { ...message, media_url: localUrl, _status: "sent" as MessageStatus }
+              : m
+          )
+      );
+    },
+    [matchId, queryClient, sendMessage]
   );
 
   const retry = useCallback(
@@ -202,6 +322,7 @@ export function useChat(matchId: string | undefined) {
     error: messagesQuery.error,
     send,
     sendMedia,
+    sendVoiceNote,
     retry,
     deleteMessage,
     isSending: sendMessage.isPending,

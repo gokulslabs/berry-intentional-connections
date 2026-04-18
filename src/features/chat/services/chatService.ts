@@ -8,7 +8,8 @@ export const chatService = {
     senderId: string,
     content: string,
     mediaUrl?: string,
-    mediaType?: "image" | "video"
+    mediaType?: "image" | "video" | "audio",
+    extra?: { audio_path?: string; audio_duration?: number }
   ): Promise<{ message: Message | null; error: string | null }> {
     const row: Record<string, unknown> = {
       match_id: matchId,
@@ -17,6 +18,8 @@ export const chatService = {
     };
     if (mediaUrl) row.media_url = mediaUrl;
     if (mediaType) row.media_type = mediaType;
+    if (extra?.audio_path) row.audio_path = extra.audio_path;
+    if (typeof extra?.audio_duration === "number") row.audio_duration = extra.audio_duration;
 
     const { data: message, error } = await supabase
       .from("messages")
@@ -42,6 +45,40 @@ export const chatService = {
 
     const { data } = supabase.storage.from("chat-media").getPublicUrl(path);
     return { url: data.publicUrl, error: null };
+  },
+
+  /**
+   * Upload a voice note to the PRIVATE chat-audio bucket.
+   * Returns the storage path (not a URL) — callers must request a signed URL to play it.
+   */
+  async uploadVoiceNote(
+    matchId: string,
+    blob: Blob
+  ): Promise<{ path: string | null; error: string | null }> {
+    const mime = blob.type || "audio/webm";
+    const ext = mime.includes("mp4") ? "m4a" : mime.includes("ogg") ? "ogg" : "webm";
+    const path = `${matchId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("chat-audio")
+      .upload(path, blob, { contentType: mime, upsert: false });
+
+    if (error) return { path: null, error: error.message };
+    return { path, error: null };
+  },
+
+  /**
+   * Generate a short-lived signed URL for a private voice note.
+   */
+  async getVoiceNoteUrl(
+    path: string,
+    expiresInSec = 3600
+  ): Promise<{ url: string | null; error: string | null }> {
+    const { data, error } = await supabase.storage
+      .from("chat-audio")
+      .createSignedUrl(path, expiresInSec);
+    if (error) return { url: null, error: error.message };
+    return { url: data?.signedUrl ?? null, error: null };
   },
 
   async getMessages(

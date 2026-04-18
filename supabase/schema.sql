@@ -223,3 +223,48 @@ BEGIN
   ORDER BY m.created_at DESC;
 END;
 $$;
+
+-- ============================================================
+-- 8. Voice Notes
+-- ============================================================
+
+-- Add audio columns to messages table
+ALTER TABLE public.messages
+  ADD COLUMN IF NOT EXISTS audio_path TEXT,
+  ADD COLUMN IF NOT EXISTS audio_duration NUMERIC;
+
+-- Allow 'audio' as a media_type (no enum used; media_type is free text)
+-- Existing constraints (none) remain compatible.
+
+-- Private bucket for voice notes
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('chat-audio', 'chat-audio', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- RLS: storage.objects policies for chat-audio
+-- Files are stored under: <match_id>/<filename>
+-- Only match participants can read/write.
+
+CREATE POLICY "Match participants can upload voice notes"
+  ON storage.objects FOR INSERT
+  TO authenticated
+  WITH CHECK (
+    bucket_id = 'chat-audio'
+    AND public.is_match_participant(auth.uid(), (storage.foldername(name))[1]::uuid)
+  );
+
+CREATE POLICY "Match participants can read voice notes"
+  ON storage.objects FOR SELECT
+  TO authenticated
+  USING (
+    bucket_id = 'chat-audio'
+    AND public.is_match_participant(auth.uid(), (storage.foldername(name))[1]::uuid)
+  );
+
+CREATE POLICY "Senders can delete their voice notes"
+  ON storage.objects FOR DELETE
+  TO authenticated
+  USING (
+    bucket_id = 'chat-audio'
+    AND owner = auth.uid()
+  );
